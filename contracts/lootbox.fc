@@ -13,17 +13,18 @@ int op::report_royalty_params() asm "0xa8cb00ad PUSHINT";
 ;;           ^[collection_content:^Cell common_content:^Cell]
 ;;           nft_item_code:^Cell
 ;;           royalty_params:^RoyaltyParams
-;;           chances:^Cell
+;;           chancesDict:^Cell
 ;;           = Storage;
 
-(slice, int, cell, cell, cell) load_data() inline {
+(slice, int, cell, cell, cell, cell) load_data() inline {
   var ds = get_data().begin_parse();
   return
     (ds~load_msg_addr(), ;; owner_address
      ds~load_uint(64), ;; next_item_index
      ds~load_ref(), ;; content
      ds~load_ref(), ;; nft_item_code
-     ds~load_ref()  ;; royalty_params
+     ds~load_ref(),  ;; royalty_params
+     ds~load_dict()  ;; chances_dict
      );
 }
 
@@ -48,6 +49,14 @@ slice calculate_nft_item_address(int wc, cell state_init) {
                      .store_uint(cell_hash(state_init), 256)
                      .end_cell()
                      .begin_parse();
+}
+
+int pick_item_key(cell chances_dict) inline_ref {
+  randomize_lt();
+  int random_chance = rand(100) + 1;
+  (int item_chance, _, _) = chances_dict.udict_get_prev?(random_chance, 16);
+
+  return item_chance;
 }
 
 () deploy_nft_item(int item_index, cell nft_item_code, int amount, cell nft_content) impure {
@@ -90,7 +99,7 @@ slice calculate_nft_item_address(int wc, cell state_init) {
     int op = in_msg_body~load_uint(32);
     int query_id = in_msg_body~load_uint(64);
 
-    var (owner_address, next_item_index, content, nft_item_code, royalty_params) = load_data();
+    var (owner_address, next_item_index, content, nft_item_code, royalty_params, chances_dict) = load_data();
 
     if (op == op::get_royalty_params()) {
         send_royalty_params(sender_address, query_id, royalty_params.begin_parse());
@@ -99,12 +108,15 @@ slice calculate_nft_item_address(int wc, cell state_init) {
 
     throw_unless(401, equal_slices(sender_address, owner_address));
 
-
     if (op == 1) { ;; deploy new nft
       int item_index = in_msg_body~load_uint(64);
       throw_unless(402, item_index <= next_item_index);
       var is_last = item_index == next_item_index;
-      deploy_nft_item(item_index, nft_item_code, in_msg_body~load_coins(), in_msg_body~load_ref());
+      int chances_key = pick_item_key(chances_dict);
+
+      (cell item_content, int success) = chances_dict.udict_get_ref?(chances_key, 16);
+      deploy_nft_item(item_index, nft_item_code, in_msg_body~load_coins(), item_content);
+
       if (is_last) {
         next_item_index += 1;
         save_data(owner_address, next_item_index, content, nft_item_code, royalty_params);
@@ -123,7 +135,9 @@ slice calculate_nft_item_address(int wc, cell state_init) {
           }
 
           throw_unless(403 + counter, item_index <= next_item_index);
-          deploy_nft_item(item_index, nft_item_code, item~load_coins(), item~load_ref());
+          int chances_key = pick_item_key(chances_dict);
+          (cell item_content, int success) = chances_dict.udict_get_ref?(chances_key, 16);
+          deploy_nft_item(item_index, nft_item_code, item~load_coins(), item_content);
           if (item_index == next_item_index) {
             next_item_index += 1;
           }
@@ -143,25 +157,31 @@ slice calculate_nft_item_address(int wc, cell state_init) {
 ;; Get methods
 
 (int, cell, slice) get_collection_data() method_id {
-  var (owner_address, next_item_index, content, _, _) = load_data();
+  var (owner_address, next_item_index, content, _, _, _) = load_data();
   slice cs = content.begin_parse();
   return (next_item_index, cs~load_ref(), owner_address);
 }
 
 slice get_nft_address_by_index(int index) method_id {
-    var (_, _, _, nft_item_code, _) = load_data();
+    var (_, _, _, nft_item_code, _, _) = load_data();
     cell state_init = calculate_nft_item_state_init(index, nft_item_code);
     return calculate_nft_item_address(0, state_init);
 }
 
 (int, int, slice) royalty_params() method_id {
-     var (_, _, _, _, royalty) = load_data();
+     var (_, _, _, _, royalty, _) = load_data();
      slice rs = royalty.begin_parse();
      return (rs~load_uint(16), rs~load_uint(16), rs~load_msg_addr());
 }
 
+cell chances_cell() method_id {
+     var (_, _, _, _, _, chances) = load_data();
+
+     return chances;
+}
+
 cell get_nft_content(int index, cell individual_nft_content) method_id {
-  var (_, _, content, _, _) = load_data();
+  var (_, _, content, _, _, _) = load_data();
   slice cs = content.begin_parse();
   cs~load_ref();
   slice common_content = cs~load_ref().begin_parse();

@@ -1,4 +1,4 @@
-import { Address, beginCell, Cell, Contract, contractAddress, ContractProvider, Sender, toNano } from "ton-core";
+import { Address, beginCell, Cell, Contract, contractAddress, ContractProvider, Sender, toNano, Dictionary } from "ton-core";
 import { NftItem } from "./NftItem";
 
 export type LootboxData = {
@@ -19,6 +19,7 @@ export type LootboxConfig = {
     content?: Cell
     itemCode?: Cell
     royaltyParams?: Cell
+    chancesCell: Dictionary<number, Cell>
 };
 
 function LootboxConfigToCell(config: LootboxConfig): Cell {
@@ -28,6 +29,7 @@ function LootboxConfigToCell(config: LootboxConfig): Cell {
         .storeRef(config.content ?? beginCell().storeRef(new Cell()))
         .storeRef(config.itemCode ?? NftItem.code)
         .storeRef(config.royaltyParams ?? new Cell())
+        .storeDict(config.chancesCell, Dictionary.Keys.Uint(16), Dictionary.Values.Cell())
         .endCell();
 }
 
