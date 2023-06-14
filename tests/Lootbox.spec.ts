@@ -1,8 +1,21 @@
 import { Blockchain, SandboxContract } from '@ton-community/sandbox';
-import { Cell, toNano } from 'ton-core';
-import { Lootbox } from '../wrappers/Lootbox';
+import { Cell, beginCell, toNano } from 'ton-core';
+import { Lootbox, LootboxConfig, RoyaltyData } from '../wrappers/Lootbox';
 import '@ton-community/test-utils';
 import { compile } from '@ton-community/blueprint';
+import { randomAddress } from "@ton-community/test-utils";
+
+const OWNER_ADDRESS = randomAddress()
+const ROYALTY_ADDRESS = randomAddress()
+
+const contentCell = beginCell().storeRef(new Cell()).storeRef(new Cell()).endCell()
+const royaltyCell = beginCell().storeUint(5, 16).storeUint(10, 16).storeAddress(ROYALTY_ADDRESS).endCell()
+const defaultConfig: LootboxConfig = {
+    owner: OWNER_ADDRESS,
+    nextItemIndex: 1,
+    content: contentCell,
+    royaltyParams: royaltyCell
+}
 
 describe('Lootbox', () => {
     let code: Cell;
@@ -18,20 +31,14 @@ describe('Lootbox', () => {
         blockchain = await Blockchain.create();
 
         lootbox = blockchain.openContract(
-            Lootbox.createFromConfig(
-                {
-                    id: 0,
-                    counter: 0,
-                },
-                code
-            )
+            Lootbox.createFromConfig(defaultConfig, Lootbox.code)
         );
 
         const deployer = await blockchain.treasury('deployer');
 
-        const deployResult = await lootbox.sendDeploy(deployer.getSender(), toNano('0.05'));
+        const result = await lootbox.sendDeploy(deployer.getSender(), toNano('0.05'));
 
-        expect(deployResult.transactions).toHaveTransaction({
+        expect(result.transactions).toHaveTransaction({
             from: deployer.address,
             to: lootbox.address,
             deploy: true,
@@ -44,37 +51,21 @@ describe('Lootbox', () => {
         // blockchain and lootbox are ready to use
     });
 
-    it('should increase counter', async () => {
-        const increaseTimes = 3;
-        for (let i = 0; i < increaseTimes; i++) {
-            console.log(`increase ${i + 1}/${increaseTimes}`);
+    describe('get methods', () => {
+        it('should return royalty params', async () => {
+            let ressult = await lootbox.getRoyaltyParams()
 
-            const increaser = await blockchain.treasury('increaser' + i);
-
-            const counterBefore = await lootbox.getCounter();
-
-            console.log('counter before increasing', counterBefore);
-
-            const increaseBy = Math.floor(Math.random() * 100);
-
-            console.log('increasing by', increaseBy);
-
-            const increaseResult = await lootbox.sendIncrease(increaser.getSender(), {
-                increaseBy,
-                value: toNano('0.05'),
-            });
-
-            expect(increaseResult.transactions).toHaveTransaction({
-                from: increaser.address,
-                to: lootbox.address,
-                success: true,
-            });
-
-            const counterAfter = await lootbox.getCounter();
-
-            console.log('counter after increasing', counterAfter);
-
-            expect(counterAfter).toBe(counterBefore + increaseBy);
-        }
+            expect(ressult.royaltyFactor).toEqual(5)
+            expect(ressult.royaltyBase).toEqual(10)
+            expect(ressult.royaltyAddress.toString()).toEqual(ROYALTY_ADDRESS.toString())
+        });
     });
+
+    it('should mint', async () => {
+        const deployer = await blockchain.treasury('deployer');
+
+        let result = await lootbox.sendMint(deployer.getSender(), lootbox.address, { value: toNano('0.05') });
+
+        expect(result.transactions).toHaveTransaction({ from: lootbox.address, success: true });
+    })
 });
