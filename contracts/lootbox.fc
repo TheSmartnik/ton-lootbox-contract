@@ -4,7 +4,6 @@ int workchain() asm "0 PUSHINT";
 
 int op::get_royalty_params() asm "0x693d3950 PUSHINT";
 int op::report_royalty_params() asm "0xa8cb00ad PUSHINT";
-
 ;; NFT collection smart contract
 
 ;; storage scheme
@@ -24,17 +23,18 @@ int op::report_royalty_params() asm "0xa8cb00ad PUSHINT";
      ds~load_ref(), ;; content
      ds~load_ref(), ;; nft_item_code
      ds~load_ref(),  ;; royalty_params
-     ds~load_dict()  ;; chances_dict
-     );
+     ds~load_ref()  ;; lootbox_params
+    );
 }
 
-() save_data(slice owner_address, int next_item_index, cell content, cell nft_item_code, cell royalty_params) impure inline {
+() save_data(slice owner_address, int next_item_index, cell content, cell nft_item_code, cell royalty_params, cell lootbox_params) impure inline {
   set_data(begin_cell()
     .store_slice(owner_address)
     .store_uint(next_item_index, 64)
     .store_ref(content)
     .store_ref(nft_item_code)
     .store_ref(royalty_params)
+    .store_ref(lootbox_params)
     .end_cell());
 }
 
@@ -51,12 +51,30 @@ slice calculate_nft_item_address(int wc, cell state_init) {
                      .begin_parse();
 }
 
-int pick_item_key(cell chances_dict) inline_ref {
+(cell, cell) parse_lootbox_params(cell lootbox_params) inline {
+  slice params = lootbox_params.begin_parse();
+
+  return (
+    params~load_ref(),
+    params~load_dict()
+  );
+}
+
+cell pick_item_content(slice chances, cell contents_dict) inline_ref {
   randomize_lt();
   int random_chance = rand(100) + 1;
-  (int item_chance, _, _) = chances_dict.udict_get_prev?(random_chance, 16);
+  int index = 0;
+  int chances_length = chances~load_uint(16);
+  int item_chance = chances~load_uint(16);
 
-  return item_chance;
+  while((item_chance < random_chance) & (index < chances_length)) {
+    index += 1;
+    item_chance = chances~load_uint(16);
+  }
+
+  (cell item, _) = contents_dict.udict_get_ref?(16, index);
+
+  return item;
 }
 
 () deploy_nft_item(int item_index, cell nft_item_code, int amount, cell nft_content) impure {
@@ -69,6 +87,7 @@ int pick_item_key(cell chances_dict) inline_ref {
             .store_uint(4 + 2 + 1, 1 + 4 + 4 + 64 + 32 + 1 + 1 + 1)
             .store_ref(state_init)
             .store_ref(nft_content);
+
   send_raw_message(msg.end_cell(), 1); ;; pay transfer fees separately, revert on errors
 }
 
@@ -99,7 +118,7 @@ int pick_item_key(cell chances_dict) inline_ref {
     int op = in_msg_body~load_uint(32);
     int query_id = in_msg_body~load_uint(64);
 
-    var (owner_address, next_item_index, content, nft_item_code, royalty_params, chances_dict) = load_data();
+    var (owner_address, next_item_index, content, nft_item_code, royalty_params, lootbox_params) = load_data();
 
     if (op == op::get_royalty_params()) {
         send_royalty_params(sender_address, query_id, royalty_params.begin_parse());
@@ -108,19 +127,20 @@ int pick_item_key(cell chances_dict) inline_ref {
 
     throw_unless(401, equal_slices(sender_address, owner_address));
 
+    var (chances_cell, contents_dict) = parse_lootbox_params(lootbox_params);
+    slice chances = chances_cell.begin_parse();
+
     if (op == 1) { ;; deploy new nft
       int item_index = in_msg_body~load_uint(64);
       throw_unless(402, item_index <= next_item_index);
       var is_last = item_index == next_item_index;
-      int chances_key = pick_item_key(chances_dict);
 
-      (cell item_content, int success) = chances_dict.udict_get_ref?(chances_key, 16);
-      deploy_nft_item(item_index, nft_item_code, in_msg_body~load_coins(), item_content);
-
+      deploy_nft_item(item_index, nft_item_code, in_msg_body~load_coins(), pick_item_content(chances, contents_dict));
       if (is_last) {
         next_item_index += 1;
-        save_data(owner_address, next_item_index, content, nft_item_code, royalty_params);
+        save_data(owner_address, next_item_index, content, nft_item_code, royalty_params, lootbox_params);
       }
+
       return ();
     }
     if (op == 2) { ;; batch deploy of new nfts
@@ -135,20 +155,19 @@ int pick_item_key(cell chances_dict) inline_ref {
           }
 
           throw_unless(403 + counter, item_index <= next_item_index);
-          int chances_key = pick_item_key(chances_dict);
-          (cell item_content, int success) = chances_dict.udict_get_ref?(chances_key, 16);
-          deploy_nft_item(item_index, nft_item_code, item~load_coins(), item_content);
+          deploy_nft_item(item_index, nft_item_code, item~load_coins(), pick_item_content(chances, contents_dict));
           if (item_index == next_item_index) {
             next_item_index += 1;
           }
         }
       } until ( ~ f?);
-      save_data(owner_address, next_item_index, content, nft_item_code, royalty_params);
+      save_data(owner_address, next_item_index, content, nft_item_code, royalty_params, lootbox_params);
+
       return ();
     }
     if (op == 3) { ;; change owner
       slice new_owner = in_msg_body~load_msg_addr();
-      save_data(new_owner, next_item_index, content, nft_item_code, royalty_params);
+      save_data(new_owner, next_item_index, content, nft_item_code, royalty_params, lootbox_params);
       return ();
     }
     throw(0xffff);
@@ -165,6 +184,7 @@ int pick_item_key(cell chances_dict) inline_ref {
 slice get_nft_address_by_index(int index) method_id {
     var (_, _, _, nft_item_code, _, _) = load_data();
     cell state_init = calculate_nft_item_state_init(index, nft_item_code);
+
     return calculate_nft_item_address(0, state_init);
 }
 

@@ -19,7 +19,7 @@ export type LootboxConfig = {
     content?: Cell
     itemCode?: Cell
     royaltyParams?: Cell
-    chancesCell: Dictionary<number, Cell>
+    lootboxContent: Cell
 };
 
 function LootboxConfigToCell(config: LootboxConfig): Cell {
@@ -29,7 +29,7 @@ function LootboxConfigToCell(config: LootboxConfig): Cell {
         .storeRef(config.content ?? beginCell().storeRef(new Cell()))
         .storeRef(config.itemCode ?? NftItem.code)
         .storeRef(config.royaltyParams ?? new Cell())
-        .storeDict(config.chancesCell, Dictionary.Keys.Uint(16), Dictionary.Values.Cell())
+        .storeRef(config.lootboxContent)
         .endCell();
 }
 
@@ -94,6 +94,12 @@ export class Lootbox implements Contract {
             royaltyBase: res.stack.readNumber(),
             royaltyAddress: res.stack.readAddress()
         }
+    }
+
+    async getChances(provider: ContractProvider): Promise<Cell> {
+        const res = await provider.get('chances_cell', [])
+
+        return res.stack.readCell();
     }
 
     async getCollectionData(provider: ContractProvider): Promise<LootboxData> {
