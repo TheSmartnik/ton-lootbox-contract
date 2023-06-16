@@ -9,6 +9,7 @@ import { randomAddress } from "@ton-community/test-utils";
 
 const OWNER_ADDRESS = randomAddress()
 const ROYALTY_ADDRESS = randomAddress()
+const NFT_OWNER_ADDRESS = randomAddress()
 
 const contentCell = beginCell().storeRef(new Cell()).storeRef(new Cell()).endCell()
 const royaltyCell = beginCell().storeUint(5, 16).storeUint(10, 16).storeAddress(ROYALTY_ADDRESS).endCell()
@@ -101,7 +102,7 @@ describe('Lootbox', () => {
 
     it('should mint', async () => {
         let expectedItemAddress = await lootbox.getItemAddress(3);
-        let result = await lootbox.sendMint(deployer.getSender(), lootbox.address, { value: toNano('0.05') });
+        let result = await lootbox.sendMint(deployer.getSender(), NFT_OWNER_ADDRESS, { value: toNano('0.05') });
 
         expect(result.transactions).toHaveTransaction({ from: lootbox.address, success: true, to: expectedItemAddress });
 

@@ -77,16 +77,17 @@ cell pick_item_content(slice chances, cell contents_dict) inline_ref {
   return item;
 }
 
-() deploy_nft_item(int item_index, cell nft_item_code, int amount, cell nft_content) impure {
+() deploy_nft_item(int item_index, cell nft_item_code, int amount, slice owner, cell content) impure {
   cell state_init = calculate_nft_item_state_init(item_index, nft_item_code);
   slice nft_address = calculate_nft_item_address(workchain(), state_init);
+  cell nft_item_data = begin_cell().store_slice(owner).store_ref(content).end_cell();
   var msg = begin_cell()
             .store_uint(0x18, 6)
             .store_slice(nft_address)
             .store_coins(amount)
             .store_uint(4 + 2 + 1, 1 + 4 + 4 + 64 + 32 + 1 + 1 + 1)
             .store_ref(state_init)
-            .store_ref(nft_content);
+            .store_ref(nft_item_data);
 
   send_raw_message(msg.end_cell(), 1); ;; pay transfer fees separately, revert on errors
 }
@@ -135,7 +136,7 @@ cell pick_item_content(slice chances, cell contents_dict) inline_ref {
       throw_unless(402, item_index <= next_item_index);
       var is_last = item_index == next_item_index;
 
-      deploy_nft_item(item_index, nft_item_code, in_msg_body~load_coins(), pick_item_content(chances, contents_dict));
+      deploy_nft_item(item_index, nft_item_code, in_msg_body~load_coins(), in_msg_body~load_msg_addr(), pick_item_content(chances, contents_dict));
       if (is_last) {
         next_item_index += 1;
         save_data(owner_address, next_item_index, content, nft_item_code, royalty_params, lootbox_params);
@@ -155,7 +156,7 @@ cell pick_item_content(slice chances, cell contents_dict) inline_ref {
           }
 
           throw_unless(403 + counter, item_index <= next_item_index);
-          deploy_nft_item(item_index, nft_item_code, item~load_coins(), pick_item_content(chances, contents_dict));
+          deploy_nft_item(item_index, nft_item_code, item~load_coins(), in_msg_body~load_msg_addr(), pick_item_content(chances, contents_dict));
           if (item_index == next_item_index) {
             next_item_index += 1;
           }

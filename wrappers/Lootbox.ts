@@ -61,10 +61,9 @@ export class Lootbox implements Contract {
         })
     }
 
-    async sendMint(provider: ContractProvider, via: Sender, to: Address, params?: Partial<{
+    async sendMint(provider: ContractProvider, via: Sender, to: Address, params: Partial<{
         value: bigint
         itemValue: bigint
-        content: Cell
     }>) {
         const index = this.nextItemIndex++
         await provider.internal(via, {
@@ -74,9 +73,7 @@ export class Lootbox implements Contract {
                 .storeUint(0, 64) // query id
                 .storeUint(index, 64)
                 .storeCoins(params?.itemValue ?? toNano('0.02'))
-                .storeRef(beginCell()
-                    .storeAddress(to)
-                    .storeRef(params?.content ?? new Cell()))
+                .storeAddress(to)
                 .endCell()
         })
         return index
