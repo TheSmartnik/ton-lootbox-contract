@@ -85,13 +85,13 @@ describe('Lootbox', () => {
         });
     });
 
-    xit('should deploy', async () => {
+    it('should deploy', async () => {
         // the check is done inside beforeEach
         // blockchain and lootbox are ready to use
     });
 
     describe('get methods', () => {
-        xit('should return royalty params', async () => {
+        it('should return royalty params', async () => {
             let ressult = await lootbox.getRoyaltyParams()
 
             expect(ressult.royaltyFactor).toEqual(5)
@@ -101,10 +101,14 @@ describe('Lootbox', () => {
     });
 
     it('should mint', async () => {
-        let expectedItemAddress = await lootbox.getItemAddress(3);
-        let result = await lootbox.sendMint(deployer.getSender(), NFT_OWNER_ADDRESS, { value: toNano('0.05') });
+        let expectedItemAddress = await lootbox.getItemAddress(3)
+        let result = await lootbox.sendMint(deployer.getSender(), NFT_OWNER_ADDRESS, { value: toNano('0.05') })
 
-        expect(result.transactions).toHaveTransaction({ from: lootbox.address, success: true, to: expectedItemAddress });
+        expect(result.transactions).toHaveTransaction({ from: lootbox.address, success: true, to: expectedItemAddress })
+        const lastTransaction = result.transactions[2]
+        const messageBody = lastTransaction.inMessage!.body.beginParse()
 
+        expect(messageBody.loadAddress().toString()).toEqual(NFT_OWNER_ADDRESS.toString())
+        expect(messageBody.loadStringRefTail()).toMatch(/ipfs:\/\/long_string\/\d*\.jpg/)
     })
 });
