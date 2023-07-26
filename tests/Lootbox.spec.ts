@@ -14,46 +14,48 @@ const NFT_OWNER_ADDRESS = randomAddress()
 const contentCell = beginCell().storeRef(new Cell()).storeRef(new Cell()).endCell()
 const royaltyCell = beginCell().storeUint(5, 16).storeUint(10, 16).storeAddress(ROYALTY_ADDRESS).endCell()
 
-let contentsCell = Dictionary.empty<number, Cell>();
 let create_content = (content: String): Cell => (beginCell().storeBuffer(Buffer.from(content))).endCell();
 
-contentsCell.set(0, create_content('ipfs://bafybeiehhitjaarz6jwfyun5kspdzwczr6trzd5zqs23nu5kujgfyrpiuu/0.jpg'));
-contentsCell.set(1, create_content('ipfs://bafybeiehhitjaarz6jwfyun5kspdzwczr6trzd5zqs23nu5kujgfyrpiuu/1.jpg'));
-contentsCell.set(2, create_content('ipfs://bafybeiehhitjaarz6jwfyun5kspdzwczr6trzd5zqs23nu5kujgfyrpiuu/2.jpg'));
-contentsCell.set(3, create_content('ipfs://bafybeiehhitjaarz6jwfyun5kspdzwczr6trzd5zqs23nu5kujgfyrpiuu/3.jpg'));
-contentsCell.set(4, create_content('ipfs://bafybeiehhitjaarz6jwfyun5kspdzwczr6trzd5zqs23nu5kujgfyrpiuu/4.jpg'));
-contentsCell.set(5, create_content('ipfs://bafybeiehhitjaarz6jwfyun5kspdzwczr6trzd5zqs23nu5kujgfyrpiuu/5.jpg'));
-contentsCell.set(6, create_content('ipfs://bafybeiehhitjaarz6jwfyun5kspdzwczr6trzd5zqs23nu5kujgfyrpiuu/6.jpg'));
-contentsCell.set(7, create_content('ipfs://bafybeiehhitjaarz6jwfyun5kspdzwczr6trzd5zqs23nu5kujgfyrpiuu/7.jpg'));
-contentsCell.set(8, create_content('ipfs://bafybeiehhitjaarz6jwfyun5kspdzwczr6trzd5zqs23nu5kujgfyrpiuu/8.jpg'));
-contentsCell.set(9, create_content('ipfs://bafybeiehhitjaarz6jwfyun5kspdzwczr6trzd5zqs23nu5kujgfyrpiuu/9.jpg'));
-
-const chancesCell = beginCell()
-    .storeUint(10, 16)
-    .storeUint(15, 16)
-    .storeUint(25, 16)
-    .storeUint(35, 16)
-    .storeUint(45, 16)
-    .storeUint(55, 16)
-    .storeUint(65, 16)
-    .storeUint(75, 16)
-    .storeUint(85, 16)
-    .storeUint(95, 16)
-    .endCell();
-
-const lootboxContent = beginCell()
-    .storeRef(chancesCell)
-    .storeDict(contentsCell, Dictionary.Keys.Uint(16), Dictionary.Values.Cell())
-    .endCell()
-
+let chancesWithContent = {
+   10: create_content('ipfs://long_string/1.jpg'),
+   20: create_content('ipfs://long_string/2.jpg'),
+   30: create_content('ipfs://long_string/3.jpg'),
+   40: create_content('ipfs://long_string/4.jpg'),
+   50: create_content('ipfs://long_string/5.jpg'),
+   60: create_content('ipfs://long_string/6.jpg'),
+   70: create_content('ipfs://long_string/7.jpg'),
+   80: create_content('ipfs://long_string/8.jpg'),
+   95: create_content('ipfs://long_string/9.jpg'),
+   100: create_content('ipfs://long_string/10.jpg')
+}
 
 const defaultConfig: LootboxConfig = {
     nextItemIndex: 3,
     owner: OWNER_ADDRESS,
     content: contentCell,
     royaltyParams: royaltyCell,
-    lootboxContent: lootboxContent
+    chancesWithContent: chancesWithContent
 }
+
+describe('Helpful Hints', () => {
+    it('prints hint with chances and content', async () => {
+        let expectedOutput = `| Chance | Content
+|    10% | ipfs://long_string/1.jpg
+|    10% | ipfs://long_string/2.jpg
+|    10% | ipfs://long_string/3.jpg
+|    10% | ipfs://long_string/4.jpg
+|    10% | ipfs://long_string/5.jpg
+|    10% | ipfs://long_string/6.jpg
+|    10% | ipfs://long_string/7.jpg
+|    10% | ipfs://long_string/8.jpg
+|    15% | ipfs://long_string/9.jpg
+|     5% | ipfs://long_string/10.jpg`
+
+        let hint = Lootbox.printChancesFromCOnfig(defaultConfig);
+
+        expect(hint).toEqual(expectedOutput)
+    })
+});
 
 describe('Lootbox', () => {
     let code: Cell;
@@ -109,6 +111,8 @@ describe('Lootbox', () => {
         const messageBody = lastTransaction.inMessage!.body.beginParse()
 
         expect(messageBody.loadAddress().toString()).toEqual(NFT_OWNER_ADDRESS.toString())
-        expect(messageBody.loadStringRefTail()).toMatch(/ipfs:\/\/long_string\/\d*\.jpg/)
+        let nftContent = messageBody.loadStringRefTail()
+        expect(nftContent).toMatch(/ipfs:\/\/long_string\/\d*\.jpg/)
+        console.log(nftContent);
     })
 });

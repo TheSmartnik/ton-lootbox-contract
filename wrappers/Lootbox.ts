@@ -13,23 +13,51 @@ export type RoyaltyData = {
     royaltyAddress: Address
 }
 
+export type chancesWithContent = {
+    [key: string]: Cell
+}
+
 export type LootboxConfig = {
     owner: Address
     nextItemIndex?: number
     content?: Cell
     itemCode?: Cell
     royaltyParams?: Cell
-    lootboxContent: Cell
+    chancesWithContent: chancesWithContent
 };
 
+function createLootboxContent(chancesWithContent: chancesWithContent): Cell {
+
+    let chances = Object.keys(chancesWithContent).map( e => Number.parseInt(e));
+    let contentsCell = Dictionary.empty<number, Cell>();
+
+    if (chances[chances.length - 1] > 100) {
+        throw new Error('Last element should be less or equal to 100');
+    } else if (chances[0] <= 0) {
+        throw new Error('First element should be above 0');
+    }
+
+    const chancesCell = beginCell().storeUint(chances.length, 16);
+    chances.forEach(chance => chancesCell.storeUint(chance, 16));
+    Object.values(chancesWithContent).forEach((content, index) => contentsCell.set(index, content));
+
+    const lootboxContent = beginCell()
+        .storeRef(chancesCell.endCell())
+        .storeDict(contentsCell, Dictionary.Keys.Uint(16), Dictionary.Values.Cell())
+        .endCell()
+
+    return lootboxContent;
+}
+
 function LootboxConfigToCell(config: LootboxConfig): Cell {
+    let lootboxContent = createLootboxContent(config.chancesWithContent);
     return beginCell()
         .storeAddress(config.owner)
         .storeUint(config.nextItemIndex ?? 0, 64)
         .storeRef(config.content ?? beginCell().storeRef(new Cell()))
         .storeRef(config.itemCode ?? NftItem.code)
         .storeRef(config.royaltyParams ?? new Cell())
-        .storeRef(config.lootboxContent)
+        .storeRef(lootboxContent)
         .endCell();
 }
 
@@ -52,6 +80,20 @@ export class Lootbox implements Contract {
             collection.nextItemIndex = config.nextItemIndex;
         }
         return collection;
+    }
+
+    static printChancesFromCOnfig({ chancesWithContent }: LootboxConfig) {
+        let previousChance = 0;
+        let chances = Object.keys(chancesWithContent).map(e => Number.parseInt(e));
+        let hint = chances.map((chance: number) => {
+            let actualChance = chance - previousChance
+            previousChance = chance;
+            let content = chancesWithContent[chance].beginParse().loadStringTail();
+
+            return `| ${actualChance.toString().padStart(5, ' ')}% | ${content}`
+        }).join("\n")
+
+        return `| Chance | Content\n${hint}`;
     }
 
     async sendDeploy(provider: ContractProvider, via: Sender, value: bigint) {

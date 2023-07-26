@@ -62,7 +62,7 @@ slice calculate_nft_item_address(int wc, cell state_init) {
 
 cell pick_item_content(slice chances, cell contents_dict) inline_ref {
   randomize_lt();
-  int random_chance = rand(100) + 1;
+  int random_chance = rand(100);
   int index = 0;
   int chances_length = chances~load_uint(16);
   int item_chance = chances~load_uint(16);
