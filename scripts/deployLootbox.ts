@@ -7,11 +7,6 @@ const NUMBER_OF_CHANCES = 3;
 
 let create_content = (content: String): Cell => (beginCell().storeBuffer(Buffer.from(content))).endCell();
 
-let contentsCell = Dictionary.empty<number, Cell>();
-contentsCell.set(0, create_content('ipfs://long_string/1.jpg'))
-contentsCell.set(70, create_content('ipfs://long_string/2.jpg'))
-contentsCell.set(95, create_content('ipfs://long_string/3.jpg'))
-
 let chancesWithContent = {
    70: create_content('ipfs://long_string/1.jpg'),
    95: create_content('ipfs://long_string/2.jpg'),
