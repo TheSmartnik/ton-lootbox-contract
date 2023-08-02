@@ -104,15 +104,14 @@ describe('Lootbox', () => {
 
     it('should mint', async () => {
         let expectedItemAddress = await lootbox.getItemAddress(3)
-        let result = await lootbox.sendMint(deployer.getSender(), NFT_OWNER_ADDRESS, { value: toNano('0.05') })
+        let result = await lootbox.sendMint(deployer.getSender(), { value: toNano('0.05') })
 
         expect(result.transactions).toHaveTransaction({ from: lootbox.address, success: true, to: expectedItemAddress })
         const lastTransaction = result.transactions[2]
         const messageBody = lastTransaction.inMessage!.body.beginParse()
 
-        expect(messageBody.loadAddress().toString()).toEqual(NFT_OWNER_ADDRESS.toString())
+        expect(messageBody.loadAddress().toString()).toEqual(lootbox.address.toString())
         let nftContent = messageBody.loadStringRefTail()
         expect(nftContent).toMatch(/ipfs:\/\/long_string\/\d*\.jpg/)
-        console.log(nftContent);
     })
 });

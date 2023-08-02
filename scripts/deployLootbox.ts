@@ -2,15 +2,13 @@ import { toNano, Address, Cell, beginCell, Dictionary } from 'ton-core';
 import { Lootbox } from '../wrappers/Lootbox';
 import { compile, NetworkProvider } from '@ton-community/blueprint';
 
-const OWNER_ADDRESS = Address.parse('');
-const NUMBER_OF_CHANCES = 3;
-
 let create_content = (content: String): Cell => (beginCell().storeBuffer(Buffer.from(content))).endCell();
 
 let chancesWithContent = {
-   70: create_content('ipfs://long_string/1.jpg'),
-   95: create_content('ipfs://long_string/2.jpg'),
-   100: create_content('ipfs://long_string/3.jpg'),
+  40: create_content("https://gist.github.com/TheSmartnik/fc398bdc3ab7de5a68f9ed083a0099a8#file-item_1-json"),
+  70: create_content("https://gist.github.com/TheSmartnik/fc398bdc3ab7de5a68f9ed083a0099a8#file-item_2-json"),
+  90: create_content("https://gist.github.com/TheSmartnik/fc398bdc3ab7de5a68f9ed083a0099a8#file-item_3-json"),
+  100: create_content("https://gist.github.com/TheSmartnik/fc398bdc3ab7de5a68f9ed083a0099a8#file-item_4-json")
 }
 
 const collectionContent = create_content('');
@@ -18,11 +16,18 @@ const commonCollectionContent = new Cell()
 const collectionContentCell = beginCell().storeRef(collectionContent).storeRef(commonCollectionContent).endCell()
 
 export async function run(provider: NetworkProvider) {
+    const ui = provider.ui();
+
+    const ownerAddress = provider.sender?.().address;
+
+    if (!ownerAddress) { throw "Can't fetch owner address" }
+
     const lootbox = provider.open(
+
         Lootbox.createFromConfig(
             {
                 nextItemIndex: 0,
-                owner: OWNER_ADDRESS,
+                owner: ownerAddress,
                 content: collectionContentCell,
                 royaltyParams: new Cell(),
                 chancesWithContent: chancesWithContent
@@ -31,9 +36,14 @@ export async function run(provider: NetworkProvider) {
         )
     );
 
-    await lootbox.sendDeploy(provider.sender(), toNano('0.05'));
+    const lootboxAddress = lootbox.address;
+    if (await provider.isContractDeployed(lootboxAddress)) {
+        ui.write(`Lootbox is already deployed\nAddress ${lootboxAddress}`)
+    } else {
+        await lootbox.sendDeploy(provider.sender(), toNano('0.05'));
 
-    await provider.waitForDeploy(lootbox.address);
+        await provider.waitForDeploy(lootboxAddress);
 
-    console.log('Address', await lootbox.address);
+        ui.write(`Address ${lootboxAddress}`)
+    }
 }

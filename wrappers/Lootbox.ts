@@ -96,6 +96,10 @@ export class Lootbox implements Contract {
         return `| Chance | Content\n${hint}`;
     }
 
+    setNextItemIndex(index: number) {
+        this.nextItemIndex = index;
+    }
+
     async sendDeploy(provider: ContractProvider, via: Sender, value: bigint) {
         await provider.internal(via, {
             value,
@@ -103,21 +107,23 @@ export class Lootbox implements Contract {
         })
     }
 
-    async sendMint(provider: ContractProvider, via: Sender, to: Address, params: Partial<{
-        value: bigint
-        itemValue: bigint
+    async sendMint(provider: ContractProvider, via: Sender, params?: Partial<{
+        value?: bigint
+        itemValue?: bigint
+        queryId?: number
     }>) {
-        const index = this.nextItemIndex++
         await provider.internal(via, {
             value: params?.value ?? toNano('0.05'),
             body: beginCell()
                 .storeUint(1, 32) // op
-                .storeUint(0, 64) // query id
-                .storeUint(index, 64)
+                .storeUint(params?.queryId ?? 0, 64)
+                .storeUint(this.nextItemIndex, 64)
                 .storeCoins(params?.itemValue ?? toNano('0.02'))
-                .storeAddress(to)
+                .storeAddress(this.address)
                 .endCell()
         })
+
+        const index = this.nextItemIndex++
         return index
     }
 
@@ -141,7 +147,7 @@ export class Lootbox implements Contract {
         return res.stack.readCell();
     }
 
-    async getCollectionData(provider: ContractProvider): Promise<LootboxData> {
+    async getLootboxData(provider: ContractProvider): Promise<LootboxData> {
         const { stack } = await provider.get('get_collection_data', [])
         return {
             nextItemIndex: stack.readNumber(),

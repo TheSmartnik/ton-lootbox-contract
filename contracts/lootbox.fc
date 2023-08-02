@@ -67,7 +67,7 @@ cell pick_item_content(slice chances, cell contents_dict) inline_ref {
   int chances_length = chances~load_uint(16);
   int item_chance = chances~load_uint(16);
 
-  while((item_chance < random_chance) & (index < (chances_length - 1))) {
+  while((item_chance <= random_chance) & (index < (chances_length - 1))) {
     index += 1;
     item_chance = chances~load_uint(16);
   }
