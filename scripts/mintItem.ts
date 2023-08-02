@@ -19,7 +19,7 @@ export async function run(provider: NetworkProvider, args: string[]) {
     lootbox.setNextItemIndex(lootboxData.nextItemIndex);
 
     const itemAddress = await lootbox.getItemAddress(lootbox.nextItemIndex);
-    await lootbox.sendMint(provider.sender()), {};
+    await lootbox.sendMint(provider.sender());
 
     ui.write('Waiting for lootbox to mint the item...');
 

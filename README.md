@@ -1,76 +1,117 @@
-# TON project
+# Lootbox Nft Colleciton
 
-Starter template for a new TON project - FunC contracts, unit tests, compilation and deployment scripts.
+This contract allows to create Nft Collection that will mint fixed set of nft_items with predefined chances
 
-## Layout
+## Defining Chances
+Chances are definied by a dictionary where key is an item upper bound and value is a cell containg content of an item
 
--   `contracts` - contains the source code of all the smart contracts of the project and their dependencies.
--   `wrappers` - contains the wrapper classes (implementing `Contract` from ton-core) for the contracts, including any [de]serialization primitives and compilation functions.
--   `tests` - tests for the contracts. Would typically use the wrappers.
--   `scripts` - contains scripts used by the project, mainly the deployment scripts.   
+### Example when deployed via CLI
+Create a json file with the following content. You will provide a path to the file later
 
-## Repo contents / tech stack
-1. Compiling FunC - [https://github.com/ton-community/func-js](https://github.com/ton-community/func-js)
-2. Testing TON smart contracts - [https://github.com/ton-community/sandbox](https://github.com/ton-community/sandbox)
-3. Deployment of contracts is supported with [TON Connect 2](https://github.com/ton-connect/), [Tonhub wallet](https://tonhub.com/), using mnemonics, or via a direct `ton://` deeplink
+```ts
+{
+  40: "ipfs://long_string/1.jpg",
+  70: "ipfs://long_string/2.jpg",
+  90: "ipfs://long_string/3.jpg",
+  100: "ipfs://long_string/4.jpg"
+}
+```
 
-## How to use
-* Run `npm create ton@latest`
+### Example when deployed manually
+```ts
+let create_content = (content: String): Cell => (beginCell().storeBuffer(Buffer.from(content))).endCell();
 
-### Building a contract
-1. Interactively
-   1. Run `yarn blueprint build`
-   2. Choose the contract you'd like to build
-1. Non-interactively
-   1. Run `yarn blueprint build <CONTRACT>`
-   2. example: `yarn blueprint build pingpong`
+let chancesWithContent = {
+  40: create_content("ipfs://long_string/1.jpg"),
+  70: create_content("ipfs://long_string/2.jpg"),
+  90: create_content("ipfs://long_string/3.jpg"),
+  100: create_content("ipfs://long_string/4.jpg")
+}
+```
 
-### Deploying a contract
-1. Interactively
-   1. Run `yarn blueprint run`
-   2. Choose the contract you'd like to deploy
-   3. Choose whether you're deploying on mainnet or testnet
-   4. Choose how to deploy:
-      1. With a TON Connect compatible wallet
-      2. A `ton://` deep link / QR code
-      3. Tonhub wallet
-      4. Mnemonic
-   5. Deploy the contract
-2. Non-interactively
-   1. Run `yarn blueprint run <CONTRACT> --<NETWORK> --<DEPLOY_METHOD>`
-   2. example: `yarn blueprint run pingpong --mainnet --tonconnect`
+### Example explanation 
 
-### Testing
-1. Run `yarn test`
+In the example above items will have the following chances to be minted
 
-## Adding your own contract
-1. Run `yarn blueprint create <CONTRACT>`
-2. example: `yarn blueprint create MyContract`
+|Chance|Content|
+| --- | --- |
+|    40% | ipfs://long_string/1.jpg|
+|    30% | ipfs://long_string/2.jpg|
+|    20% | ipfs://long_string/3.jpg|
+|    10% | ipfs://long_string/4.jpg|
 
-* Write code
-  * FunC contracts are located in `contracts/*.fc`
-    * Standalone root contracts are located in `contracts/*.fc`
-    * Shared imports (when breaking code to multiple files) are in `contracts/imports/*.fc`
-  * Tests in TypeScript are located in `test/*.spec.ts`
-  * Wrapper classes for interacting with the contract are located in `wrappers/*.ts`
-  * Any scripts (including deployers) are located in `scripts/*.ts`
 
-* Build
-  * Builder configs are located in `wrappers/*.compile.ts`
-  * In the root repo dir, run in terminal `yarn blueprint build`
-  * Compilation errors will appear on screen, if applicable
-  * Resulting build artifacts include:
-    * `build/*.compiled.json` - the binary code cell of the compiled contract (for deployment). Saved in a hex format within a json file to support webapp imports
+## Deployment
 
-* Test
-  * In the root repo dir, run in terminal `yarn test`
-  * Don't forget to build (or rebuild) before running tests
-  * Tests are running inside Node.js by running TVM in web-assembly using [sandbox](https://github.com/ton-community/sandbox)
+### CLI Contract Deployment
 
-* Deploy
-  * Run `yarn blueprint run <deployscript>`
-  * Contracts will be rebuilt on each execution
-  * Follow the on-screen instructions of the deploy script
+Run the following command and follow step
+
+```bash
+npx blueprint run
+```
+
+### Manual Contract Deployment
+* Create chances dictionary following the steps above
+* Then create collectionContentCell. The process is the same as for any NFT collection
+* Create a config
+```js
+config = {
+    nextItemIndex: 0,
+    owner: ownerAddress,
+    content: collectionContentCell ,
+    royaltyParams: new Cell(),
+    chancesWithContent: chancesWithContent
+}
+```
+
+Initialize everything and deploy the contract
+
+```js
+const lootbox = provider.open(
+        Lootbox.createFromConfig(config),
+        Lootbox.code
+)
+
+await lootbox.sendDeploy(provider.sender(), toNano('0.05'));
+
+```
+
+## Minting
+### CLI Minting
+Run the following command and follow step
+
+```bash
+npx blueprint run mintItem
+```
+
+### Manual Minting
+For a first run
+```
+const lootbox = provider.open(Lootbox.createFromAddress(lootboxAddress));
+
+const itemAddress = await lootbox.getItemAddress(lootbox.nextItemIndex);
+await lootbox.sendMint(provider.sender());
+```
+
+For consecutive runs
+```
+const lootbox = provider.open(Lootbox.createFromAddress(lootboxAddress));
+
+const lootboxData = await lootbox.getLootboxData();
+lootbox.setNextItemIndex(lootboxData.nextItemIndex);
+
+const itemAddress = await lootbox.getItemAddress(lootbox.nextItemIndex);
+await lootbox.sendMint(provider.sender());
+```
+
+## To Do
+* Update Lootbox code
+* Fetch content from json object
+* Add ability to provide colleciton content
+* Script to print chances
+* Print Chances before deploy and confirm
+* Provide Gas values
   
 # License
 MIT
