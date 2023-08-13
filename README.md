@@ -8,12 +8,12 @@ Chances are definied by a dictionary where key is an item upper bound and value 
 ### Example when deployed via CLI
 Create a json file with the following content. You will provide a path to the file later
 
-```ts
+```json
 {
-  40: "ipfs://long_string/1.jpg",
-  70: "ipfs://long_string/2.jpg",
-  90: "ipfs://long_string/3.jpg",
-  100: "ipfs://long_string/4.jpg"
+  "40": "ipfs://long_string/1.jpg",
+  "70": "ipfs://long_string/2.jpg",
+  "90": "ipfs://long_string/3.jpg",
+  "100": "ipfs://long_string/4.jpg"
 }
 ```
 
@@ -45,10 +45,10 @@ In the example above items will have the following chances to be minted
 
 ### CLI Contract Deployment
 
-Run the following command and follow step
+Run the following command and follow the steps
 
 ```bash
-npx blueprint run
+CHANCES_WITH_CONTENT_PATH='path/to/file' npx blueprint run
 ```
 
 ### Manual Contract Deployment
@@ -106,11 +106,7 @@ await lootbox.sendMint(provider.sender());
 ```
 
 ## To Do
-* Update Lootbox code
-* Fetch content from json object
 * Add ability to provide colleciton content
-* Script to print chances
-* Print Chances before deploy and confirm
 * Provide Gas values
   
 # License

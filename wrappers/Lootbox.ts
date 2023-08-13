@@ -82,7 +82,7 @@ export class Lootbox implements Contract {
         return collection;
     }
 
-    static printChancesFromCOnfig({ chancesWithContent }: LootboxConfig) {
+    static printChancesFromConfig({ chancesWithContent }: LootboxConfig) {
         let previousChance = 0;
         let chances = Object.keys(chancesWithContent).map(e => Number.parseInt(e));
         let hint = chances.map((chance: number) => {

@@ -1,15 +1,21 @@
 import { toNano, Address, Cell, beginCell, Dictionary } from 'ton-core';
-import { Lootbox } from '../wrappers/Lootbox';
+import { Lootbox, chancesWithContent } from '../wrappers/Lootbox';
 import { compile, NetworkProvider } from '@ton-community/blueprint';
+import { readFileSync } from 'fs';
 
 let create_content = (content: String): Cell => (beginCell().storeBuffer(Buffer.from(content))).endCell();
 
-let chancesWithContent = {
-  40: create_content("https://gist.github.com/TheSmartnik/fc398bdc3ab7de5a68f9ed083a0099a8#file-item_1-json"),
-  70: create_content("https://gist.github.com/TheSmartnik/fc398bdc3ab7de5a68f9ed083a0099a8#file-item_2-json"),
-  90: create_content("https://gist.github.com/TheSmartnik/fc398bdc3ab7de5a68f9ed083a0099a8#file-item_3-json"),
-  100: create_content("https://gist.github.com/TheSmartnik/fc398bdc3ab7de5a68f9ed083a0099a8#file-item_4-json")
+const path = process.env.CHANCES_WITH_CONTENT_PATH;
+if (!path) {
+    throw("Please provide a path to chances with content via CHANCES_WITH_CONTENT_PATH env variable")
 }
+const fileContent = readFileSync(path).toString('utf-8');
+const chancesWithContentJson = JSON.parse(fileContent);
+const chancesWithContent = Object.keys(chancesWithContentJson).reduce((memo: chancesWithContent, key) => {
+   memo[key] = create_content(chancesWithContentJson[key])
+
+   return memo;
+}, {})
 
 const collectionContent = create_content('');
 const commonCollectionContent = new Cell()
@@ -22,18 +28,22 @@ export async function run(provider: NetworkProvider) {
 
     if (!ownerAddress) { throw "Can't fetch owner address" }
 
-    const lootbox = provider.open(
+    const config = {
+        nextItemIndex: 0,
+        owner: ownerAddress,
+        content: collectionContentCell,
+        royaltyParams: new Cell(),
+        chancesWithContent: chancesWithContent
+    }
 
-        Lootbox.createFromConfig(
-            {
-                nextItemIndex: 0,
-                owner: ownerAddress,
-                content: collectionContentCell,
-                royaltyParams: new Cell(),
-                chancesWithContent: chancesWithContent
-            },
-            await compile('Lootbox')
-        )
+    ui.write(`Using file: ${path}\nHere are the expected chances of the lootbox`)
+    ui.write(`Here is the expected chances for lootbox`)
+    ui.write(Lootbox.printChancesFromConfig(config))
+
+    await ui.prompt('Press enter to continue deploy');
+
+    const lootbox = provider.open(
+        Lootbox.createFromConfig(config, await compile('Lootbox'))
     );
 
     const lootboxAddress = lootbox.address;

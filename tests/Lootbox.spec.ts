@@ -51,7 +51,7 @@ describe('Helpful Hints', () => {
 |    15% | ipfs://long_string/9.jpg
 |     5% | ipfs://long_string/10.jpg`
 
-        let hint = Lootbox.printChancesFromCOnfig(defaultConfig);
+        let hint = Lootbox.printChancesFromConfig(defaultConfig);
 
         expect(hint).toEqual(expectedOutput)
     })
