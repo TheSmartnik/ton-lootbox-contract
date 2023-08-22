@@ -51,28 +51,23 @@ slice calculate_nft_item_address(int wc, cell state_init) {
                      .begin_parse();
 }
 
-(cell, cell) parse_lootbox_params(cell lootbox_params) inline {
+cell parse_lootbox_params(cell lootbox_params) inline {
   slice params = lootbox_params.begin_parse();
 
-  return (
-    params~load_ref(),
-    params~load_dict()
-  );
+  return params~load_dict();
 }
 
-cell pick_item_content(slice chances, cell contents_dict) inline_ref {
+cell pick_item_content(cell chances_contents_dict) inline_ref {
   randomize_lt();
   int random_chance = rand(100);
-  int index = 0;
-  int chances_length = chances~load_uint(16);
-  int item_chance = chances~load_uint(16);
 
-  while((item_chance <= random_chance) & (index < (chances_length - 1))) {
-    index += 1;
-    item_chance = chances~load_uint(16);
+  (int item_chance, _, _) = chances_contents_dict.udict_get_min?(16);
+
+  while((item_chance <= random_chance)) {
+    (item_chance, _, _) = chances_contents_dict.udict_get_next?(16, item_chance);
   }
 
-  (cell item, _) = contents_dict.udict_get_ref?(16, index);
+  (cell item, _) = chances_contents_dict.udict_get_ref?(16, item_chance);
 
   return item;
 }
@@ -128,15 +123,14 @@ cell pick_item_content(slice chances, cell contents_dict) inline_ref {
 
     throw_unless(401, equal_slices(sender_address, owner_address));
 
-    var (chances_cell, contents_dict) = parse_lootbox_params(lootbox_params);
-    slice chances = chances_cell.begin_parse();
+    cell chances_contents_dict = parse_lootbox_params(lootbox_params);
 
     if (op == 1) { ;; deploy new nft
       int item_index = in_msg_body~load_uint(64);
       throw_unless(402, item_index <= next_item_index);
       var is_last = item_index == next_item_index;
 
-      deploy_nft_item(item_index, nft_item_code, in_msg_body~load_coins(), in_msg_body~load_msg_addr(), pick_item_content(chances, contents_dict));
+      deploy_nft_item(item_index, nft_item_code, in_msg_body~load_coins(), in_msg_body~load_msg_addr(), pick_item_content(chances_contents_dict));
       if (is_last) {
         next_item_index += 1;
         save_data(owner_address, next_item_index, content, nft_item_code, royalty_params, lootbox_params);
@@ -156,7 +150,7 @@ cell pick_item_content(slice chances, cell contents_dict) inline_ref {
           }
 
           throw_unless(403 + counter, item_index <= next_item_index);
-          deploy_nft_item(item_index, nft_item_code, item~load_coins(), in_msg_body~load_msg_addr(), pick_item_content(chances, contents_dict));
+          deploy_nft_item(item_index, nft_item_code, item~load_coins(), in_msg_body~load_msg_addr(), pick_item_content(chances_contents_dict));
           if (item_index == next_item_index) {
             next_item_index += 1;
           }

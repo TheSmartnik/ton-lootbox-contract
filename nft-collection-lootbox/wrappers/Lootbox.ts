@@ -27,9 +27,13 @@ export type LootboxConfig = {
 };
 
 function createLootboxContent(chancesWithContent: chancesWithContent): Cell {
-
     let chances = Object.keys(chancesWithContent).map( e => Number.parseInt(e));
-    let contentsCell = Dictionary.empty<number, Cell>();
+    let chancesWithContentCell = Dictionary.empty<number, Cell>();
+
+    Object.keys(chancesWithContent).forEach((e) => {
+        let chance = Number.parseInt(e)
+        chancesWithContentCell.set(chance, chancesWithContent[e])
+    })
 
     if (chances[chances.length - 1] > 100) {
         throw new Error('Last element should be less or equal to 100');
@@ -37,13 +41,8 @@ function createLootboxContent(chancesWithContent: chancesWithContent): Cell {
         throw new Error('First element should be above 0');
     }
 
-    const chancesCell = beginCell().storeUint(chances.length, 16);
-    chances.forEach(chance => chancesCell.storeUint(chance, 16));
-    Object.values(chancesWithContent).forEach((content, index) => contentsCell.set(index, content));
-
     const lootboxContent = beginCell()
-        .storeRef(chancesCell.endCell())
-        .storeDict(contentsCell, Dictionary.Keys.Uint(16), Dictionary.Values.Cell())
+        .storeDict(chancesWithContentCell, Dictionary.Keys.Uint(16), Dictionary.Values.Cell())
         .endCell()
 
     return lootboxContent;
