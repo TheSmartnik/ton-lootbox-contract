@@ -81,6 +81,12 @@ describe('Lootbox', () => {
             });
         });
 
+        expect(result.transactions).toHaveTransaction({
+            from: lootbox.address,
+            to: deployer.address,
+            op: 0xd53276db,
+        });
+
         let secondCancel = await lootbox.sendCancel(deployer.getSender(), toNano('1'));
 
         expect(secondCancel.transactions).toHaveTransaction({

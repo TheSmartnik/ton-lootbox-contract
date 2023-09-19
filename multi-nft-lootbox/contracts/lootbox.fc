@@ -189,6 +189,8 @@ cell cancel(slice owner_address, cell lootbox_params) inline {
     if (op == op::cancel()) {
         cell new_lootbox_params = cancel(owner_address, lootbox_params);
         save_data(owner_address, lootbox_price, new_lootbox_params);
+
+        send_msg(sender_address, 0, op::excesses(), query_id, 128);
         return ();
     }
 
