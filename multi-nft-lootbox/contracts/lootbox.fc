@@ -1,0 +1,216 @@
+#include "imports/stdlib.fc";
+
+int min_tons_for_storage() asm "50000000 PUSHINT"; ;;
+
+;; Default op codes
+int op::transfer() asm "0x5fcc3d14 PUSHINT";
+int op::take_excess() asm "0xd136d3b3 PUSHINT";
+int op::excesses() asm "0xd53276db PUSHINT";
+int transfer_fee() asm "51230000 PUSHINT";
+
+;; Domain Specific opcodes
+int op::cancel() asm "0xcc0f2526 PUSHINT";
+
+slice null_addr() asm "b{00} PUSHSLICE";
+
+
+() send_nft(slice to, slice nft_addr, int chance) impure inline_ref {
+    builder body = begin_cell()
+        .store_uint(op::transfer(), 32) ;; op
+        .store_uint(chance, 64)       ;; query id
+        .store_slice(to)                ;; new owner
+        .store_slice(null_addr())       ;; response destination
+        .store_int(0, 1)                ;; custom payload
+        .store_coins(0)                 ;; fwd ton amount
+        .store_int(0, 1);               ;; fwd custom payload
+
+    builder msg = begin_cell()
+        .store_uint(0x10, 6)
+        .store_slice(nft_addr)
+        .store_coins(0)
+        .store_uint(1, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+        .store_ref(body.end_cell());
+
+    send_raw_message(msg.end_cell(), 3);
+}
+
+() send_msg(slice to_address, int amount, int op, int query_id, int send_mode) impure inline {
+    var body = begin_cell().store_uint(op, 32).store_uint(query_id, 64);
+
+    var msg = begin_cell()
+            .store_uint(0x10, 6)
+            .store_slice(to_address)
+            .store_coins(amount)
+            .store_uint(1, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+            .store_ref(body.end_cell());
+
+    send_raw_message(msg.end_cell(), send_mode);
+}
+
+(int, slice, int) pick_nft_address(cell chances_addresses_dict) inline_ref {
+  randomize_lt();
+  int random_chance = rand(100);
+
+  (int item_chance, slice address, _) = chances_addresses_dict.udict_get_min?(16);
+
+  while((item_chance <= random_chance)) {
+    (item_chance, address, _) = chances_addresses_dict.udict_get_next?(16, item_chance);
+  }
+
+  return (item_chance, address, random_chance);
+}
+
+(int, cell) parse_lootbox_params(cell lootbox_params) inline {
+  slice params = lootbox_params.begin_parse();
+
+  return (params~load_uint(16), params~load_dict());
+}
+
+cell redistribute_chances(int key, int dict_size, cell chances_addresses_dict) inline {
+    var (prev_chance, _, success) = chances_addresses_dict.udict_get_prev?(16, key);
+    int new_dict_size = dict_size - 1;
+    cell new_chances = new_dict();
+
+    if (new_dict_size == 0) {
+        return new_chances;
+    }
+
+    int prev_item_chance = 0;
+    int chances_to_distribute = 0;
+
+    if (success == 0) {
+        chances_to_distribute = key;
+        prev_item_chance = key;
+        dict_size -= 1;
+    } else {
+        chances_to_distribute = key - prev_chance;
+    }
+
+    var (quotient, reminder) = divmod(chances_to_distribute, new_dict_size);
+
+    int current_item_chance = 0;
+    int prev_item_new_chance = 0;
+    int i = 0;
+
+    while(i < dict_size) {
+        (current_item_chance, slice address, _) = chances_addresses_dict.udict_get_next?(16, prev_item_chance);
+        if (key != current_item_chance) {
+            int item_new_chance = current_item_chance + quotient + prev_item_new_chance - prev_item_chance;
+
+            if (reminder > 0) {
+                item_new_chance += 1;
+                reminder -= 1;
+            }
+
+            new_chances~udict_set(16, item_new_chance, address);
+
+            prev_item_new_chance = item_new_chance;
+        }
+
+        i += 1;
+        prev_item_chance = current_item_chance;
+    }
+    return new_chances;
+}
+
+cell open_lootbox(slice sender_address, cell lootbox_params) inline {
+    (int dict_size, cell chances_addresses_dict) = parse_lootbox_params(lootbox_params);
+    throw_if(400, dict_size == 0);
+
+    var (key, nft_address, chance) = pick_nft_address(chances_addresses_dict);
+
+    send_nft(sender_address, nft_address, chance);
+    cell new_chances = redistribute_chances(key, dict_size, chances_addresses_dict);
+    cell new_lootbox_params = begin_cell()
+        .store_uint(dict_size - 1, 16)
+        .store_dict(new_chances)
+        .end_cell();
+
+    return new_lootbox_params;
+}
+
+cell cancel(slice owner_address, cell lootbox_params) inline {
+    (int dict_size, cell chances_addresses_dict) = parse_lootbox_params(lootbox_params);
+    throw_if(401, dict_size == 0);
+
+    int item_chance = 0;
+    repeat(dict_size) {
+        (item_chance, slice nft_address, _) = chances_addresses_dict.udict_get_next?(16, item_chance);
+        send_nft(owner_address, nft_address, 0);
+    }
+
+    return begin_cell().store_uint(0, 16).store_dict(new_dict()).end_cell();
+}
+
+(slice, int, cell) load_data() inline {
+  var ds = get_data().begin_parse();
+
+  return
+    (ds~load_msg_addr(), ;; owner_address
+     ds~load_coins(), ;; lootbox_price
+     ds~load_ref()  ;; lootbox_params
+    );
+}
+
+() save_data(slice owner_address, int lootbox_price, cell lootbox_params) impure inline {
+    set_data(begin_cell()
+        .store_slice(owner_address)
+        .store_coins(lootbox_price)
+        .store_ref(lootbox_params)
+        .end_cell()
+    );
+}
+
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    slice cs = in_msg_full.begin_parse();
+    int flags = cs~load_uint(4);
+    if (flags & 1) { return (); } ;; ignore all bounced messages
+
+    slice sender_address = cs~load_msg_addr();
+    cs~load_msg_addr(); ;; skip dst
+    var message_coins = cs~load_coins();
+
+    var (owner_address, lootbox_price, lootbox_params) = load_data();
+
+    if (in_msg_body.slice_empty?()) {
+        throw_if(402, message_coins < lootbox_price);
+
+        cell new_lootbox_params = open_lootbox(sender_address, lootbox_params);
+        save_data(owner_address, lootbox_price, new_lootbox_params);
+
+        return ();
+    }
+
+    throw_unless(401, equal_slices(owner_address, sender_address));
+
+    int op = in_msg_body~load_uint(32);
+    int query_id = in_msg_body~load_uint(64);
+
+    if (op == op::cancel()) {
+        cell new_lootbox_params = cancel(owner_address, lootbox_params);
+        save_data(owner_address, lootbox_price, new_lootbox_params);
+        return ();
+    }
+
+    if (op == op::take_excess()) {
+        ;; reserve amount for storage
+        raw_reserve(min_tons_for_storage(), 0);
+
+        send_msg(sender_address, 0, op::excesses(), query_id, 128);
+        return ();
+    }
+}
+
+;; get methods
+
+(int, cell) get_chances_data() method_id {
+    var (owner_address, lootbox_price, lootbox_params) = load_data();
+
+    return parse_lootbox_params(lootbox_params);
+}
+
+int lootbox_price() method_id {
+    var (owner_address, lootbox_price, lootbox_params) = load_data();
+
+    return lootbox_price;
+}
