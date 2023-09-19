@@ -63,6 +63,20 @@ export class Lootbox implements Contract {
         return new Lootbox(contractAddress(workchain, init), init);
     }
 
+    static printChancesFromConfig({ chancesWithAddresses }: LootboxConfig) {
+        let previousChance = 0;
+        let chances = Object.keys(chancesWithAddresses).map(e => Number.parseInt(e));
+        let hint = chances.map((chance: number) => {
+            let actualChance = chance - previousChance
+            previousChance = chance;
+            let content = chancesWithAddresses[chance].toString();
+
+            return `| ${actualChance.toString().padStart(5, ' ')}% | ${content}`
+        }).join("\n")
+
+        return `| Chance | Content\n${hint}`;
+    }
+
     async sendDeploy(provider: ContractProvider, via: Sender, value: bigint, params?: Partial<{
         queryId?: number
     }>) {
