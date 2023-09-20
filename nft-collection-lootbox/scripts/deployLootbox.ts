@@ -17,16 +17,18 @@ const chancesWithContent = Object.keys(chancesWithContentJson).reduce((memo: cha
    return memo;
 }, {})
 
-const collectionContent = create_content('');
-const commonCollectionContent = new Cell()
-const collectionContentCell = beginCell().storeRef(collectionContent).storeRef(commonCollectionContent).endCell()
-
 export async function run(provider: NetworkProvider) {
     const ui = provider.ui();
 
     const ownerAddress = provider.sender?.().address;
 
     if (!ownerAddress) { throw "Can't fetch owner address" }
+
+    const content = await ui.input('Press provide a link to a collection content');
+    const collectionContent = create_content(content);
+
+    const commonCollectionContent = new Cell()
+    const collectionContentCell = beginCell().storeRef(collectionContent).storeRef(commonCollectionContent).endCell()
 
     const config = {
         nextItemIndex: 0,

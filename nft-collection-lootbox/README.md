@@ -104,10 +104,6 @@ lootbox.setNextItemIndex(lootboxData.nextItemIndex);
 const itemAddress = await lootbox.getItemAddress(lootbox.nextItemIndex);
 await lootbox.sendMint(provider.sender());
 ```
-
-## To Do
-* Add ability to provide colleciton content
-* Provide Gas values
   
 # License
 MIT
